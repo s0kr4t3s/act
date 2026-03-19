@@ -25,10 +25,12 @@
     "loading_stage": "Setting the stage...",
     "loading_return": "Taking a bow...",
     "btn_great": "I was great!",
+    "btn_reroll": "Reroll",
     "label_emotion": "Emotion:",
     "label_character": "Character:",
     "label_sentence": "Your Line:",
-    "btn_reroll": "Reroll"
+    "imprint": "Imprint",
+    "privacy_policy": "Privacy Policy"
   },
   "de": {
     "app_title": "act!",
@@ -56,9 +58,11 @@
     "loading_stage": "Bühne wird vorbereitet...",
     "loading_return": "Applaus entgegennehmen...",
     "btn_great": "Ich war großartig!",
+    "btn_reroll": "Neu würfeln",
     "label_emotion": "Emotion:",
     "label_character": "Charakter:",
     "label_sentence": "Dein Text:",
-    "btn_reroll": "Neu würfeln"
+    "imprint": "Impressum",
+    "privacy_policy": "Datenschutz"
   }
 }

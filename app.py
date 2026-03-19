@@ -166,6 +166,24 @@ def inject_creative_styles() -> None:
         [data-testid="stForm"] input {
             border-radius: 8px !important;
         }
+        
+        /* Footer Links CSS */
+        .legal-footer {
+            text-align: center;
+            margin-top: 4rem;
+            padding-top: 1rem;
+            font-family: 'Kalam', cursive;
+            font-size: 0.9rem;
+        }
+        .legal-footer a {
+            color: #7F8C8D;
+            text-decoration: none;
+            margin: 0 10px;
+            transition: color 0.3s;
+        }
+        .legal-footer a:hover {
+            color: #F39C12;
+        }
         </style>
     """,
         unsafe_allow_html=True,
@@ -479,6 +497,22 @@ def render_lobby() -> None:
         st.info(f"🔄 {text['waiting_host']}")
 
 
+def render_footer() -> None:
+    text = st.session_state.text
+    imprint_text = text.get("imprint", "Impressum")
+    privacy_text = text.get("privacy_policy", "Datenschutz")
+
+    st.markdown(
+        f"""
+        <div class="legal-footer">
+            <a href="https://versteckmich.de/sokrates" target="_blank">{imprint_text}</a> | 
+            <a href="https://versteckmich.de/sokrates" target="_blank">{privacy_text}</a>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 # ==========================================
 # MAIN APP ROUTING
 # ==========================================
@@ -496,6 +530,9 @@ def main() -> None:
         render_lobby()
     elif st.session_state.current_page == "game":
         game_page(GameSessionManager)
+
+    # Zeige den Footer auf jeder Seite an
+    render_footer()
 
 
 if __name__ == "__main__":
