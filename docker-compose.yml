@@ -3,7 +3,7 @@ version: '3.8'
 services:
   mathoptix:
     build: .
-    container_name: fractions_server
+    container_name: act_server
     ports:
       # Links ist der Port nach außen (Internet/Host), rechts der interne Container-Port
       - "7860:7860" # Streamlit Web-Interface

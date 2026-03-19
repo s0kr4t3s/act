@@ -4,17 +4,6 @@ FROM opensuse/tumbleweed:latest
 # 2. Systempakete installieren (Ohne SSH!)
 RUN zypper refresh && \
     zypper --non-interactive install --no-recommends \
-    pango-devel \
-    cairo-devel \
-    libffi-devel \
-    ffmpeg \
-    texlive \
-    texlive-standalone \
-    texlive-preview \
-    texlive-dvisvgm \
-    texlive-dvipng \
-    texlive-collection-latexextra \
-    texlive-collection-fontsextra \
     python3 \
     python3-devel \
     python3-pip \
