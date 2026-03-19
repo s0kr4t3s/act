@@ -317,6 +317,22 @@ class GameSessionManager:
 # ==========================================
 # FRONTEND COMPONENTS
 # ==========================================
+def render_footer() -> None:
+    text = st.session_state.text
+    imprint_text = text.get("imprint", "Impressum")
+    privacy_text = text.get("privacy_policy", "Datenschutz")
+
+    st.markdown(
+        f"""
+        <div class="legal-footer">
+            <a href="https://versteckmich.de/sokrates" target="_blank">{imprint_text}</a> | 
+            <a href="https://versteckmich.de/sokrates" target="_blank">{privacy_text}</a>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def check_cookies() -> None:
     if st.session_state.get("cookies_accepted", False):
         return
@@ -354,7 +370,10 @@ def check_cookies() -> None:
         with col2:
             if st.button("Decline"):
                 st.error("Cookies are mandatory. Reload the page to accept.")
+                render_footer()  # Footer vor dem Stoppen anzeigen
                 st.stop()
+
+    render_footer()  # Footer vor dem Stoppen anzeigen, wenn noch nicht geklickt wurde
     st.stop()
 
 
@@ -497,28 +516,14 @@ def render_lobby() -> None:
         st.info(f"🔄 {text['waiting_host']}")
 
 
-def render_footer() -> None:
-    text = st.session_state.text
-    imprint_text = text.get("imprint", "Impressum")
-    privacy_text = text.get("privacy_policy", "Datenschutz")
-
-    st.markdown(
-        f"""
-        <div class="legal-footer">
-            <a href="https://versteckmich.de/sokrates" target="_blank">{imprint_text}</a> | 
-            <a href="https://versteckmich.de/sokrates" target="_blank">{privacy_text}</a>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
 # ==========================================
 # MAIN APP ROUTING
 # ==========================================
 def main() -> None:
     init_language()
     inject_creative_styles()
+
+    # Check_cookies ruft jetzt selbst render_footer() auf, falls abgebrochen wird
     check_cookies()
 
     if "current_page" not in st.session_state:
@@ -531,7 +536,7 @@ def main() -> None:
     elif st.session_state.current_page == "game":
         game_page(GameSessionManager)
 
-    # Zeige den Footer auf jeder Seite an
+    # Zeige den Footer am Ende der regulären Seiten an
     render_footer()
 
 
