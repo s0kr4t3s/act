@@ -5,6 +5,7 @@ import uuid
 import datetime
 import hashlib
 import time
+import hmac
 import extra_streamlit_components as stx
 from werkzeug.security import generate_password_hash, check_password_hash
 from typing import Optional, Tuple, Dict, Any
@@ -16,11 +17,60 @@ from act.game import game_page
 # ==========================================
 # GLOBAL CONFIGURATION
 # ==========================================
-MAX_PLAYERS: int = 12
+MAX_PLAYERS: int = 5
 PREFIX: str = "game_session:"
 TTL: int = 86400  # 24 hours
 
 st.set_page_config(page_title="act!", page_icon="🎭", layout="wide")
+
+
+# ==========================================
+# SECURITY & RATE LIMITING
+# ==========================================
+def get_cookie_secret() -> bytes:
+    secret = os.environ.get("COOKIE_SECRET") or st.secrets.get(
+        "COOKIE_SECRET", "super-secret-dev-key"
+    )
+    return secret.encode('utf-8')
+
+
+def sign_cookie(user_id: str) -> str:
+    signature = hmac.new(
+        get_cookie_secret(), user_id.encode('utf-8'), hashlib.sha256
+    ).hexdigest()
+    return f"{user_id}|{signature}"
+
+
+def verify_cookie(cookie_val: str) -> bool:
+    try:
+        if not cookie_val or "|" not in cookie_val:
+            return False
+        user_id, signature = cookie_val.split("|", 1)
+        expected_sig = hmac.new(
+            get_cookie_secret(), user_id.encode('utf-8'), hashlib.sha256
+        ).hexdigest()
+        return hmac.compare_digest(signature, expected_sig)
+    except Exception:
+        return False
+
+
+@st.cache_resource
+def get_rate_limiter() -> dict:
+    return {}
+
+
+def check_rate_limit(user_id: str) -> bool:
+    limiter = get_rate_limiter()
+    now = time.time()
+    history = [t for t in limiter.get(user_id, []) if now - t < 60]
+
+    if len(history) >= 3:
+        limiter[user_id] = history
+        return False
+
+    history.append(now)
+    limiter[user_id] = history
+    return True
 
 
 # ==========================================
@@ -30,7 +80,6 @@ def init_language() -> None:
     if "language" not in st.session_state:
         st.session_state.language = "en"
 
-    # Sprachwähler oben rechts
     col_spacer, col_lang = st.columns([10, 1])
     with col_lang:
         new_lang = st.selectbox(
@@ -43,7 +92,6 @@ def init_language() -> None:
             st.session_state.language = new_lang
             st.rerun()
 
-    # Lade die Strings
     try:
         with open("locales/act.json", "r", encoding="utf-8") as f:
             all_strings = json.load(f)
@@ -60,22 +108,18 @@ def inject_creative_styles() -> None:
     st.markdown(
         """
         <style>
-        /* Load Google Fonts */
         @import url('https://fonts.googleapis.com/css2?family=Permanent+Marker&family=Kalam:wght@400;700&display=swap');
 
-        /* Main app font for body and form labels */
         html, body, [data-testid="stAppViewContainer"], .st-emotion-cache-1vt458e p, label {
             font-family: 'Kalam', cursive;
             font-size: 1.1rem;
         }
 
-        /* Headings and buttons */
         h1, h2, h3, h4, h5, h6, .stButton button {
             font-family: 'Permanent Marker', cursive;
             letter-spacing: 0.05rem;
         }
         
-        /* Specific styling for st.title ("act!") */
         [data-testid="stHeader"] h1 {
             color: #E74C3C;
             text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
@@ -84,7 +128,6 @@ def inject_creative_styles() -> None:
             padding-bottom: 0;
         }
         
-        /* Slogan directly under the title */
         .actor-slogan {
             font-family: 'Permanent Marker', cursive;
             color: #F39C12;
@@ -94,7 +137,6 @@ def inject_creative_styles() -> None:
             text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
         }
 
-        /* Subtitle Typography */
         .subtitle-line {
             font-family: 'Kalam', cursive;
             font-size: 1.4rem;
@@ -102,9 +144,8 @@ def inject_creative_styles() -> None:
             margin-bottom: 0.2rem;
         }
         
-        /* Styled Header Banners for the Columns */
         .create-header {
-            background-color: #E74C3C; /* Ruby Red */
+            background-color: #E74C3C;
             padding: 1rem;
             border-radius: 15px;
             box-shadow: 0 4px 15px rgba(231, 76, 60, 0.3);
@@ -116,7 +157,7 @@ def inject_creative_styles() -> None:
         }
 
         .join-header {
-            background-color: #2ECC71; /* Emerald Green */
+            background-color: #2ECC71;
             padding: 1rem;
             border-radius: 15px;
             box-shadow: 0 4px 15px rgba(46, 204, 113, 0.3);
@@ -127,8 +168,6 @@ def inject_creative_styles() -> None:
             margin-bottom: 1rem;
         }
 
-        /* --- BUTTON COLOR HACKS --- */
-        /* Target buttons in the FIRST column (Create) */
         div[data-testid="stColumn"]:nth-child(1) button,
         div[data-testid="column"]:nth-child(1) button {
             background-color: #E74C3C !important;
@@ -142,7 +181,6 @@ def inject_creative_styles() -> None:
             border: 1px solid #C0392B !important;
         }
 
-        /* Target buttons in the SECOND column (Join) */
         div[data-testid="stColumn"]:nth-child(2) button,
         div[data-testid="column"]:nth-child(2) button {
             background-color: #2ECC71 !important;
@@ -156,18 +194,15 @@ def inject_creative_styles() -> None:
             border: 1px solid #27AE60 !important;
         }
 
-        /* Subtle glow for the vertical dashed line */
         div[data-testid="stVerticalBlock"] div:nth-child(2) hr {
             border-color: #f0f2f6 !important;
             box-shadow: 0 0 10px rgba(240, 242, 246, 0.5);
         }
         
-        /* Make standard Streamlit input elements look a bit cleaner */
         [data-testid="stForm"] input {
             border-radius: 8px !important;
         }
         
-        /* Footer Links CSS */
         .legal-footer {
             text-align: center;
             margin-top: 4rem;
@@ -196,8 +231,6 @@ def inject_creative_styles() -> None:
 @st.cache_resource
 def get_redis_client() -> redis.Redis:
     try:
-        # Check OS environment variables first (for Hugging Face Docker),
-        # fallback to st.secrets (for local testing with .streamlit/secrets.toml)
         redis_url = os.environ.get("REDIS_URL") or st.secrets.get("REDIS_URL")
 
         if not redis_url:
@@ -221,6 +254,30 @@ def generate_session_hash() -> str:
 
 
 class GameSessionManager:
+    @classmethod
+    def save_user_state(
+        cls, user_id: str, session_id: str, player_name: str, is_creator: bool
+    ) -> None:
+        redis_client = get_redis_client()
+        key = f"user_state:{user_id}"
+        data = {
+            "session_id": session_id,
+            "player_name": player_name,
+            "is_creator": is_creator,
+        }
+        redis_client.setex(key, TTL, json.dumps(data))
+
+    @classmethod
+    def get_user_state(cls, user_id: str) -> Optional[dict]:
+        redis_client = get_redis_client()
+        data = redis_client.get(f"user_state:{user_id}")
+        return json.loads(data) if data else None
+
+    @classmethod
+    def clear_user_state(cls, user_id: str) -> None:
+        redis_client = get_redis_client()
+        redis_client.delete(f"user_state:{user_id}")
+
     @classmethod
     def create_session(cls, creator_name: str, password: str) -> str:
         redis_client: redis.Redis = get_redis_client()
@@ -338,10 +395,11 @@ def check_cookies() -> None:
         return
 
     cookie_manager: stx.CookieManager = stx.CookieManager(key="global_cookie_manager")
-    consent: Optional[str] = cookie_manager.get(cookie="cookie_consent")
+    cookie_val: Optional[str] = cookie_manager.get(cookie="user_id")
 
-    if consent == "true":
+    if cookie_val and verify_cookie(cookie_val):
         st.session_state.cookies_accepted = True
+        st.session_state.user_id = cookie_val.split("|")[0]
         return
 
     with st.container():
@@ -352,6 +410,10 @@ def check_cookies() -> None:
                 expires: datetime.datetime = (
                     datetime.datetime.now() + datetime.timedelta(days=30)
                 )
+
+                raw_uuid = str(uuid.uuid4())
+                signed_id = sign_cookie(raw_uuid)
+
                 cookie_manager.set(
                     "cookie_consent",
                     "true",
@@ -359,33 +421,31 @@ def check_cookies() -> None:
                     key="set_cookie_consent",
                 )
                 cookie_manager.set(
-                    "user_id",
-                    str(uuid.uuid4()),
-                    expires_at=expires,
-                    key="set_cookie_uid",
+                    "user_id", signed_id, expires_at=expires, key="set_cookie_uid"
                 )
+
                 st.session_state.cookies_accepted = True
-                time.sleep(0.2)
+                st.session_state.user_id = raw_uuid
+                time.sleep(0.3)
                 st.rerun()
         with col2:
             if st.button("Decline"):
                 st.error("Cookies are mandatory. Reload the page to accept.")
-                render_footer()  # Footer vor dem Stoppen anzeigen
+                render_footer()
                 st.stop()
 
-    render_footer()  # Footer vor dem Stoppen anzeigen, wenn noch nicht geklickt wurde
+    render_footer()
     st.stop()
 
 
 def landing_page() -> None:
     text = st.session_state.text
+    user_id = st.session_state.user_id
 
     st.title(text["app_title"])
-
     st.markdown(
         f'<div class="actor-slogan">{text["slogan"]}</div>', unsafe_allow_html=True
     )
-
     st.markdown(
         f'<div class="subtitle-line">{text["subtitle_line1"]}</div>',
         unsafe_allow_html=True,
@@ -398,7 +458,6 @@ def landing_page() -> None:
     ''',
         unsafe_allow_html=True,
     )
-
     st.divider()
 
     col1, col2 = st.columns(2)
@@ -416,14 +475,22 @@ def landing_page() -> None:
             )
 
             if submitted_create and creator_name and create_pw:
-                session_hash: str = GameSessionManager.create_session(
-                    creator_name, create_pw
-                )
-                st.session_state.session_id = session_hash
-                st.session_state.player_name = creator_name
-                st.session_state.is_creator = True
-                st.session_state.current_page = "lobby"
-                st.rerun()
+                if not check_rate_limit(user_id):
+                    st.error("Too many sessions created. Please wait a minute.")
+                else:
+                    session_hash: str = GameSessionManager.create_session(
+                        creator_name, create_pw
+                    )
+
+                    GameSessionManager.save_user_state(
+                        user_id, session_hash, creator_name, True
+                    )
+
+                    st.session_state.session_id = session_hash
+                    st.session_state.player_name = creator_name
+                    st.session_state.is_creator = True
+                    st.session_state.current_page = "lobby"
+                    st.rerun()
 
     with col2:
         st.markdown(
@@ -443,6 +510,10 @@ def landing_page() -> None:
                     join_id, join_name, join_pw
                 )
                 if success:
+                    GameSessionManager.save_user_state(
+                        user_id, join_id, join_name, False
+                    )
+
                     st.session_state.session_id = join_id
                     st.session_state.player_name = join_name
                     st.session_state.is_creator = False
@@ -452,29 +523,38 @@ def landing_page() -> None:
                     st.error(msg)
 
 
-@st.fragment(run_every="2s")
+# --- OPTIMIERT FÜR MINIMALE DATENBANKABFRAGEN ---
+@st.fragment(run_every="5s")
 def render_lobby() -> None:
     text = st.session_state.text
     session_id: str = st.session_state.session_id
     is_creator: bool = st.session_state.is_creator
+    user_id = st.session_state.user_id
+
     session_data: Optional[Dict[str, Any]] = GameSessionManager.get_session(session_id)
 
     if not session_data:
         st.error(text.get("waiting_host", "Session not found."))
         if st.button("Back to Hub"):
+            GameSessionManager.clear_user_state(user_id)
             st.session_state.current_page = "landing"
             st.rerun()
         return
 
     if session_data.get("redirect"):
-        st.session_state.session_id = session_data["redirect"]
+        new_id = session_data["redirect"]
+        st.session_state.session_id = new_id
+        GameSessionManager.save_user_state(
+            user_id, new_id, st.session_state.player_name, is_creator
+        )
         st.rerun()
 
     if session_data.get("status") == "running":
         st.session_state.current_page = "game"
         st.rerun()
 
-    st.write(f"### Dressing Room: ID `{session_id}`")
+    st.write(f"### Dressing Room: ID")
+    st.code(session_id, language=None)
     st.divider()
 
     players: list = session_data.get('players', [])
@@ -510,6 +590,7 @@ def render_lobby() -> None:
                 text["btn_end_scene"], type="secondary", use_container_width=True
             ):
                 GameSessionManager.stop_session(session_id)
+                GameSessionManager.clear_user_state(user_id)
                 st.session_state.current_page = "landing"
                 st.rerun()
     else:
@@ -522,12 +603,42 @@ def render_lobby() -> None:
 def main() -> None:
     init_language()
     inject_creative_styles()
-
-    # Check_cookies ruft jetzt selbst render_footer() auf, falls abgebrochen wird
     check_cookies()
 
+    user_id = st.session_state.user_id
+
     if "current_page" not in st.session_state:
-        st.session_state.current_page = "landing"
+        restored_state = GameSessionManager.get_user_state(user_id)
+
+        if restored_state:
+            session_data = GameSessionManager.get_session(restored_state["session_id"])
+
+            if session_data:
+                if session_data.get("redirect"):
+                    new_id = session_data["redirect"]
+                    st.session_state.session_id = new_id
+                    GameSessionManager.save_user_state(
+                        user_id,
+                        new_id,
+                        restored_state["player_name"],
+                        restored_state["is_creator"],
+                    )
+                    session_data = GameSessionManager.get_session(new_id)
+                else:
+                    st.session_state.session_id = restored_state["session_id"]
+
+                st.session_state.player_name = restored_state["player_name"]
+                st.session_state.is_creator = restored_state["is_creator"]
+
+                if session_data and session_data.get("status") == "running":
+                    st.session_state.current_page = "game"
+                else:
+                    st.session_state.current_page = "lobby"
+            else:
+                GameSessionManager.clear_user_state(user_id)
+                st.session_state.current_page = "landing"
+        else:
+            st.session_state.current_page = "landing"
 
     if st.session_state.current_page == "landing":
         landing_page()
@@ -536,7 +647,6 @@ def main() -> None:
     elif st.session_state.current_page == "game":
         game_page(GameSessionManager)
 
-    # Zeige den Footer am Ende der regulären Seiten an
     render_footer()
 
 

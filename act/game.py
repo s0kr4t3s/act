@@ -30,8 +30,8 @@ def generate_prompt(mode: int, lang: str) -> Dict[str, str]:
     return prompt
 
 
-def handle_loading(text: str, duration: int = 1):
-    """Displays a fast 1-second progress bar blocking execution."""
+def handle_loading(text: str, duration: float = 1.0):
+    """Displays a fast progress bar blocking execution."""
     bar = st.progress(0, text=text)
     steps = 50
     sleep_time = duration / steps
@@ -39,26 +39,27 @@ def handle_loading(text: str, duration: int = 1):
         time.sleep(sleep_time)
         bar.progress(int((i + 1) * (100 / steps)), text=text)
     time.sleep(0.1)
-    bar.empty()  # Clears the progress bar after completion
+    bar.empty()
 
 
-@st.fragment(run_every="1s")
+# --- OPTIMIERT FÜR MINIMALE DATENBANKABFRAGEN ---
+@st.fragment(run_every="3s")
 def render_game_board(session_manager):
     """
-    Polls the Redis database every second to ensure all 12 players
-    see exactly the same screen and data at the same time.
+    Polls the Redis database every 3 seconds to ensure all players
+    see exactly the same screen.
     """
     session_id = st.session_state.session_id
     session_data = session_manager.get_session(session_id)
     text = st.session_state.text
     lang = st.session_state.language
+    user_id = st.session_state.user_id
 
-    # If session was closed by the host, kick everyone back to the landing page
     if not session_data or session_data.get("status") != "running":
+        session_manager.clear_user_state(user_id)
         st.session_state.current_page = "landing"
         st.rerun()
 
-    # Initialize the game phase in Redis if it hasn't been set yet
     if "game_phase" not in session_data:
         session_data["game_phase"] = 1
         session_data["selected_mode"] = None
@@ -77,7 +78,6 @@ def render_game_board(session_manager):
         )
         st.write("")
 
-        # Loading State: Light up the box green for the user who clicked
         if st.session_state.get("is_loading_mode"):
             mode = st.session_state.loading_mode
             st.markdown(
@@ -89,9 +89,8 @@ def render_game_board(session_manager):
             """,
                 unsafe_allow_html=True,
             )
-            handle_loading(text["loading_stage"], 1)  # 1 Second Timeout
+            handle_loading(text["loading_stage"], 1.0)
 
-            # Generate the prompt and update Redis so EVERYONE shifts to Phase 2
             prompt = generate_prompt(mode, lang)
             session_data["game_phase"] = 2
             session_data["selected_mode"] = mode
@@ -102,7 +101,6 @@ def render_game_board(session_manager):
             st.rerun()
             return
 
-        # Render the 3 large mode buttons
         st.markdown(
             """
             <style>
@@ -142,16 +140,14 @@ def render_game_board(session_manager):
         prompt = session_data["current_prompt"]
         mode = session_data["selected_mode"]
 
-        # --- Action: "I was great" was clicked ---
         if st.session_state.get("clicked_great"):
-            st.balloons()  # Visual feedback
+            st.balloons()
 
-            # Show a frozen, yellow button during the transition
             st.markdown(
                 """
                 <style>
                 div[data-testid="stButton"] button {
-                    background-color: #F1C40F !important; /* Yellow */
+                    background-color: #F1C40F !important;
                     color: #333333 !important;
                     border: none !important;
                     font-family: 'Permanent Marker', cursive !important;
@@ -170,9 +166,8 @@ def render_game_board(session_manager):
                 use_container_width=True,
             )
 
-            handle_loading(text["loading_return"], 1)  # 1 Second Timeout
+            handle_loading(text["loading_return"], 1.0)
 
-            # Reset the session back to Phase 1 in Redis for everyone
             session_data["game_phase"] = 1
             session_data["selected_mode"] = None
             session_data["current_prompt"] = {}
@@ -182,7 +177,6 @@ def render_game_board(session_manager):
             st.rerun()
             return
 
-        # --- Display the Colored Prompt Cards ---
         if prompt.get("emotion"):
             st.markdown(
                 f"""
@@ -219,7 +213,6 @@ def render_game_board(session_manager):
         st.write("")
         st.write("")
 
-        # --- Action Buttons: Reroll & Great ---
         col_reroll, col_great = st.columns([1, 2])
 
         with col_reroll:
@@ -241,7 +234,6 @@ def render_game_board(session_manager):
                 use_container_width=True,
                 key="reroll_btn",
             ):
-                # Generates a new prompt and updates Redis so all screens sync instantly
                 session_data["current_prompt"] = generate_prompt(mode, lang)
                 session_manager.update_session_data(session_id, session_data)
                 st.rerun()
@@ -251,7 +243,7 @@ def render_game_board(session_manager):
                 """
                 <style>
                 div[data-testid="column"]:nth-child(2) button[key="great_btn"] {
-                    background-color: #7F8C8D !important; /* Grey (Default) */
+                    background-color: #7F8C8D !important;
                     color: #FFFFFF !important;
                     border: none !important;
                     font-family: 'Permanent Marker', cursive !important;
@@ -275,21 +267,20 @@ def render_game_board(session_manager):
 
 
 def game_page(session_manager):
-    """Entry point for the game page called by app.py"""
     text = st.session_state.text
+    user_id = st.session_state.user_id
 
-    # Title and Subtitle rendering
     st.title(text["app_title"])
     st.markdown(
         f'<div class="actor-slogan" style="margin-top: -1rem; margin-bottom: 2rem;">{text["slogan"]}</div>',
         unsafe_allow_html=True,
     )
 
-    # Render the synchronized game board
     render_game_board(session_manager)
 
     st.divider()
     if st.button(text["leave_scene"], type="secondary"):
+        session_manager.clear_user_state(user_id)
         st.session_state.current_page = "landing"
         st.session_state.session_id = None
         st.rerun()
