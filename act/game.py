@@ -6,6 +6,7 @@ from typing import Dict, Any
 
 
 def load_game_data(lang: str) -> tuple:
+    """Loads the game data from JSON files based on the selected language."""
     emotions = json.load(open("locales/emotions.json"))[lang]
     roles = json.load(open("locales/roles.json"))
     sentences = json.load(open("locales/sentences.json"))[lang]
@@ -13,6 +14,7 @@ def load_game_data(lang: str) -> tuple:
 
 
 def generate_prompt(mode: int, lang: str) -> Dict[str, str]:
+    """Generates a random prompt based on the selected game mode."""
     emotions, roles, sentences = load_game_data(lang)
     prompt = {"emotion": "", "character": "", "source": "", "sentence": ""}
 
@@ -29,7 +31,7 @@ def generate_prompt(mode: int, lang: str) -> Dict[str, str]:
 
 
 def handle_loading(text: str, duration: int = 1):
-    """Zeigt einen Ladebalken an. Timeout auf 1 Sekunde geändert."""
+    """Displays a fast 1-second progress bar blocking execution."""
     bar = st.progress(0, text=text)
     steps = 50
     sleep_time = duration / steps
@@ -37,20 +39,26 @@ def handle_loading(text: str, duration: int = 1):
         time.sleep(sleep_time)
         bar.progress(int((i + 1) * (100 / steps)), text=text)
     time.sleep(0.1)
+    bar.empty()  # Clears the progress bar after completion
 
 
 @st.fragment(run_every="1s")
 def render_game_board(session_manager):
+    """
+    Polls the Redis database every second to ensure all 12 players
+    see exactly the same screen and data at the same time.
+    """
     session_id = st.session_state.session_id
     session_data = session_manager.get_session(session_id)
     text = st.session_state.text
     lang = st.session_state.language
 
+    # If session was closed by the host, kick everyone back to the landing page
     if not session_data or session_data.get("status") != "running":
         st.session_state.current_page = "landing"
         st.rerun()
 
-    # Initialisiere Game State in Redis
+    # Initialize the game phase in Redis if it hasn't been set yet
     if "game_phase" not in session_data:
         session_data["game_phase"] = 1
         session_data["selected_mode"] = None
@@ -60,7 +68,7 @@ def render_game_board(session_manager):
     phase = session_data["game_phase"]
 
     # ==========================================
-    # PHASE 1: MODUS AUSWAHL
+    # PHASE 1: MODE SELECTION
     # ==========================================
     if phase == 1:
         st.markdown(
@@ -69,20 +77,21 @@ def render_game_board(session_manager):
         )
         st.write("")
 
-        # Lade-State: Box grün aufleuchten lassen
+        # Loading State: Light up the box green for the user who clicked
         if st.session_state.get("is_loading_mode"):
             mode = st.session_state.loading_mode
             st.markdown(
                 f"""
                 <div style="background-color: #2ECC71; color: white; padding: 2rem; border-radius: 15px; text-align: center; font-family: 'Permanent Marker', cursive; font-size: 1.5rem; box-shadow: 0 0 20px #2ECC71;">
-                    Modus {mode} Selected!
+                    Mode {mode} Selected!
                 </div>
                 <br>
             """,
                 unsafe_allow_html=True,
             )
-            handle_loading(text["loading_stage"], 1)  # 1 Sekunde Timeout
+            handle_loading(text["loading_stage"], 1)  # 1 Second Timeout
 
+            # Generate the prompt and update Redis so EVERYONE shifts to Phase 2
             prompt = generate_prompt(mode, lang)
             session_data["game_phase"] = 2
             session_data["selected_mode"] = mode
@@ -93,7 +102,7 @@ def render_game_board(session_manager):
             st.rerun()
             return
 
-        # Normale Buttons
+        # Render the 3 large mode buttons
         st.markdown(
             """
             <style>
@@ -133,16 +142,16 @@ def render_game_board(session_manager):
         prompt = session_data["current_prompt"]
         mode = session_data["selected_mode"]
 
-        # --- Aktion: "I was great" wurde geklickt ---
+        # --- Action: "I was great" was clicked ---
         if st.session_state.get("clicked_great"):
-            st.balloons()  # Konfetti / Ballons
+            st.balloons()  # Visual feedback
 
-            # Zeige einen eingefrorenen, gelben Button
+            # Show a frozen, yellow button during the transition
             st.markdown(
                 """
                 <style>
                 div[data-testid="stButton"] button {
-                    background-color: #F1C40F !important; /* Gelb */
+                    background-color: #F1C40F !important; /* Yellow */
                     color: #333333 !important;
                     border: none !important;
                     font-family: 'Permanent Marker', cursive !important;
@@ -161,9 +170,9 @@ def render_game_board(session_manager):
                 use_container_width=True,
             )
 
-            handle_loading(text["loading_return"], 1)  # 1 Sekunde Timeout
+            handle_loading(text["loading_return"], 1)  # 1 Second Timeout
 
-            # Zurück zu Phase 1
+            # Reset the session back to Phase 1 in Redis for everyone
             session_data["game_phase"] = 1
             session_data["selected_mode"] = None
             session_data["current_prompt"] = {}
@@ -173,7 +182,7 @@ def render_game_board(session_manager):
             st.rerun()
             return
 
-        # --- Anzeige der farbigen Karten (Ohne graue Box) ---
+        # --- Display the Colored Prompt Cards ---
         if prompt.get("emotion"):
             st.markdown(
                 f"""
@@ -210,8 +219,8 @@ def render_game_board(session_manager):
         st.write("")
         st.write("")
 
-        # --- Aktions-Buttons: Reroll & Great ---
-        col_reroll, col_great = st.columns([1, 2])  # Great Button ist etwas breiter
+        # --- Action Buttons: Reroll & Great ---
+        col_reroll, col_great = st.columns([1, 2])
 
         with col_reroll:
             st.markdown(
@@ -226,13 +235,13 @@ def render_game_board(session_manager):
             """,
                 unsafe_allow_html=True,
             )
-            # Nutzt fallback falls "btn_reroll" noch nicht in der JSON steht
+
             if st.button(
                 "🎲 " + text.get("btn_reroll", "Reroll"),
                 use_container_width=True,
                 key="reroll_btn",
             ):
-                # Generiert synchron für alle einen neuen Prompt
+                # Generates a new prompt and updates Redis so all screens sync instantly
                 session_data["current_prompt"] = generate_prompt(mode, lang)
                 session_manager.update_session_data(session_id, session_data)
                 st.rerun()
@@ -242,7 +251,7 @@ def render_game_board(session_manager):
                 """
                 <style>
                 div[data-testid="column"]:nth-child(2) button[key="great_btn"] {
-                    background-color: #7F8C8D !important; /* Grau (Default) */
+                    background-color: #7F8C8D !important; /* Grey (Default) */
                     color: #FFFFFF !important;
                     border: none !important;
                     font-family: 'Permanent Marker', cursive !important;
@@ -266,16 +275,17 @@ def render_game_board(session_manager):
 
 
 def game_page(session_manager):
+    """Entry point for the game page called by app.py"""
     text = st.session_state.text
 
+    # Title and Subtitle rendering
     st.title(text["app_title"])
-    # Der gewünschte Untertitel unter der Act! Überschrift
     st.markdown(
         f'<div class="actor-slogan" style="margin-top: -1rem; margin-bottom: 2rem;">{text["slogan"]}</div>',
         unsafe_allow_html=True,
     )
 
-    # Der dynamische Board-Bereich (wird gepollt)
+    # Render the synchronized game board
     render_game_board(session_manager)
 
     st.divider()

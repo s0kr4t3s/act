@@ -8,6 +8,7 @@ import time
 import extra_streamlit_components as stx
 from werkzeug.security import generate_password_hash, check_password_hash
 from typing import Optional, Tuple, Dict, Any
+import os
 
 # IMPORTIERE DIE GAME LOGIK
 from act.game import game_page
@@ -177,13 +178,19 @@ def inject_creative_styles() -> None:
 @st.cache_resource
 def get_redis_client() -> redis.Redis:
     try:
-        client: redis.Redis = redis.Redis.from_url(
-            st.secrets["REDIS_URL"], decode_responses=True
-        )
+        # Check OS environment variables first (for Hugging Face Docker),
+        # fallback to st.secrets (for local testing with .streamlit/secrets.toml)
+        redis_url = os.environ.get("REDIS_URL") or st.secrets.get("REDIS_URL")
+
+        if not redis_url:
+            st.error("REDIS_URL is not set in the environment or secrets.")
+            st.stop()
+
+        client: redis.Redis = redis.Redis.from_url(redis_url, decode_responses=True)
         client.ping()
         return client
     except Exception as e:
-        st.error(f"DB connection failed. Check your REDIS_URL in secrets. Error: {e}")
+        st.error(f"DB connection failed. Error: {e}")
         st.stop()
 
 
