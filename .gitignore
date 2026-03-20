@@ -4,6 +4,8 @@ testbench.ini
 # PyCharm
 .idea
 
+*.ttf
+
 # streamlit
 .streamlit
 
