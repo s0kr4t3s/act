@@ -1,7 +1,7 @@
 {
   "en": {
     "app_title": "act!",
-    "slogan": "UNLEASH YOUR INNER ACTOR!",
+    "slogan": "UNLEASH YOUR INNER ACTRESS!",
     "subtitle_line1": "Prepare your finest role!",
     "subtitle_line2_part1": "Start a new scene",
     "subtitle_line2_or": " or ",
@@ -34,14 +34,14 @@
   },
   "de": {
     "app_title": "act!",
-    "slogan": "ENTFESSELE DEINEN INNEREN SCHAUSPIELER!",
+    "slogan": "ENTFESSELE DEINE INNERE SCHAUSPIELERIN!",
     "subtitle_line1": "Bereite deine beste Rolle vor!",
     "subtitle_line2_part1": "Starte eine neue Szene",
     "subtitle_line2_or": " oder ",
     "subtitle_line2_part2": "tritt einer Aufführung bei.",
     "create_title": "Session Erstellen",
     "join_title": "Session Beitreten",
-    "stage_name": "Dein Künstlername",
+    "stage_name": "Dein Stage Name",
     "stage_pw": "Bühnen-Passwort",
     "btn_create": "Lobby erstellen",
     "join_id": "Session-ID",

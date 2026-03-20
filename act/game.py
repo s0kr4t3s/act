@@ -7,21 +7,37 @@ from typing import Dict, Any
 
 def load_game_data(lang: str) -> tuple:
     """Loads the game data from JSON files based on the selected language."""
-    emotions = json.load(open("locales/emotions.json"))[lang]
+    # Wir laden ALLE Emotionen (en und de), um später die Übersetzung zu haben
+    all_emotions = json.load(open("locales/emotions.json"))
     roles = json.load(open("locales/roles.json"))
     sentences = json.load(open("locales/sentences.json"))[lang]
-    return emotions, roles, sentences
+    return all_emotions, roles, sentences
 
 
 def generate_prompt(mode: int, lang: str) -> Dict[str, str]:
     """Generates a random prompt based on the selected game mode."""
-    emotions, roles, sentences = load_game_data(lang)
-    prompt = {"emotion": "", "character": "", "source": "", "sentence": ""}
+    all_emotions, roles, sentences = load_game_data(lang)
+    # Wir fügen emotion_sub für die Übersetzung hinzu
+    prompt = {
+        "emotion": "",
+        "emotion_sub": "",
+        "character": "",
+        "source": "",
+        "sentence": "",
+    }
 
     prompt["sentence"] = random.choice(sentences)
 
     if mode in [1, 3]:
-        prompt["emotion"] = random.choice(emotions)
+        # Wir wählen einen zufälligen Index, um die Emotion in beiden Sprachen zu erhalten
+        idx = random.randint(0, len(all_emotions["en"]) - 1)
+        if lang == "en":
+            prompt["emotion"] = all_emotions["en"][idx]
+            prompt["emotion_sub"] = all_emotions["de"][idx]
+        else:
+            prompt["emotion"] = all_emotions["de"][idx]
+            prompt["emotion_sub"] = all_emotions["en"][idx]
+
     if mode in [2, 3]:
         role = random.choice(roles)
         prompt["character"] = role["name"]
@@ -178,11 +194,16 @@ def render_game_board(session_manager):
             return
 
         if prompt.get("emotion"):
+            # Generiere das HTML für die Zweitsprache (kleiner, normaler Font-Weight, leicht transparent/grau)
+            sub_html = ""
+            if prompt.get("emotion_sub"):
+                sub_html = f" <span style='font-size: 1.2rem; font-weight: normal; color: rgba(255, 255, 255, 0.7);'>({prompt['emotion_sub']})</span>"
+
             st.markdown(
                 f"""
             <div style='background-color: #F39C12; padding: 1.5rem; border-radius: 15px; margin-bottom: 1rem; box-shadow: 0 4px 10px rgba(0,0,0,0.2);'>
                 <h4 style='color: white; margin-bottom: 0; font-family: "Permanent Marker", cursive;'>{text['label_emotion']}</h4>
-                <h2 style='color: white; margin-top: 0;'>{prompt['emotion']}</h2>
+                <h2 style='color: white; margin-top: 0;'>{prompt['emotion']}{sub_html}</h2>
             </div>
             """,
                 unsafe_allow_html=True,

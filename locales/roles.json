@@ -1,9 +1,36 @@
 [
-  {"name": "Emma Swan", "source": "Once Upon a Time"},
-  {"name": "Captain Hook", "source": "Once Upon a Time"},
   {"name": "Darth Vader", "source": "Star Wars"},
   {"name": "Michael Scott", "source": "The Office"},
-  {"name": "Daenerys Targaryen", "source": "Game of Thrones"},
   {"name": "Harry Potter", "source": "Harry Potter"},
-  {"name": "Wednesday Addams", "source": "Wednesday"}
+  {"name": "Wednesday Addams", "source": "Wednesday"},
+  
+  {"name": "Emma Swan", "source": "Once Upon a Time"},
+  {"name": "Captain Hook (Killian Jones)", "source": "Once Upon a Time"},
+  {"name": "Regina Mills (Böse Königin)", "source": "Once Upon a Time"},
+  {"name": "Mr. Gold (Rumpelstilzchen)", "source": "Once Upon a Time"},
+  {"name": "Mary Margaret (Snow White)", "source": "Once Upon a Time"},
+  {"name": "David Nolan (Prince Charming)", "source": "Once Upon a Time"},
+  {"name": "Henry Mills", "source": "Once Upon a Time"},
+  {"name": "Robin Hood", "source": "Once Upon a Time"},
+  {"name": "Zelena (Böse Hexe des Westens)", "source": "Once Upon a Time"},
+  {"name": "Belle French", "source": "Once Upon a Time"},
+
+  {"name": "Lucifer Morningstar", "source": "Lucifer"},
+  {"name": "Det. Chloe Decker", "source": "Lucifer"},
+  {"name": "Amenadiel", "source": "Lucifer"},
+  {"name": "Mazikeen (Maze)", "source": "Lucifer"},
+  {"name": "Det. Dan Espinoza", "source": "Lucifer"},
+  {"name": "Dr. Linda Martin", "source": "Lucifer"},
+  {"name": "Ella Lopez", "source": "Lucifer"},
+  {"name": "Eve", "source": "Lucifer"},
+
+  {"name": "Dr. Gregory House", "source": "House M.D."},
+  {"name": "Dr. Allison Cameron", "source": "House M.D."},
+  {"name": "Dr. James Wilson", "source": "House M.D."},
+  {"name": "Dr. Lisa Cuddy", "source": "House M.D."},
+  {"name": "Dr. Robert Chase", "source": "House M.D."},
+  {"name": "Dr. Eric Foreman", "source": "House M.D."},
+  {"name": "Dr. Remy 'Thirteen' Hadley", "source": "House M.D."},
+  {"name": "Dr. Chris Taub", "source": "House M.D."},
+  {"name": "Dr. Lawrence Kutner", "source": "House M.D."}
 ]

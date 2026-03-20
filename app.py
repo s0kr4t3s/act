@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components  # HINZUGEFÜGT für den JS-Cookie-Injector
 import redis
 import json
 import uuid
@@ -22,6 +23,22 @@ PREFIX: str = "game_session:"
 TTL: int = 86400  # 24 hours
 
 st.set_page_config(page_title="act!", page_icon="🎭", layout="wide")
+
+
+# ==========================================
+# COOKIE SECURITY WORKAROUND
+# ==========================================
+def set_secure_cookie(name: str, value: str, days: int = 30):
+    """Setzt einen Cookie mit SameSite=None und Secure. ZWINGEND für Streamlit Cloud iFrames!"""
+    js = f"""
+    <script>
+        var d = new Date();
+        d.setTime(d.getTime() + ({days}*24*60*60*1000));
+        var expires = "expires="+ d.toUTCString();
+        document.cookie = "{name}={value};" + expires + ";path=/;SameSite=None;Secure";
+    </script>
+    """
+    components.html(js, height=0, width=0)
 
 
 # ==========================================
@@ -407,26 +424,16 @@ def check_cookies() -> None:
         col1, col2 = st.columns([1, 5])
         with col1:
             if st.button("Accept", type="primary"):
-                expires: datetime.datetime = (
-                    datetime.datetime.now() + datetime.timedelta(days=30)
-                )
-
+                # Generiere die ID und das HMAC-Signierte Token
                 raw_uuid = str(uuid.uuid4())
                 signed_id = sign_cookie(raw_uuid)
 
-                cookie_manager.set(
-                    "cookie_consent",
-                    "true",
-                    expires_at=expires,
-                    key="set_cookie_consent",
-                )
-                cookie_manager.set(
-                    "user_id", signed_id, expires_at=expires, key="set_cookie_uid"
-                )
-
                 st.session_state.cookies_accepted = True
                 st.session_state.user_id = raw_uuid
-                time.sleep(0.3)
+
+                # Signal für die main() Funktion setzen, um den JS-Injector abzufeuern
+                st.session_state.set_cookie_now = signed_id
+
                 st.rerun()
         with col2:
             if st.button("Decline"):
@@ -603,6 +610,14 @@ def render_lobby() -> None:
 def main() -> None:
     init_language()
     inject_creative_styles()
+
+    # --- WORKAROUND: Unsichtbare Cookie-Injection NACH dem Button-Klick ---
+    # Das feuert, wenn check_cookies() st.session_state.set_cookie_now gesetzt hat.
+    if "set_cookie_now" in st.session_state:
+        set_secure_cookie("cookie_consent", "true", 30)
+        set_secure_cookie("user_id", st.session_state.set_cookie_now, 30)
+        del st.session_state["set_cookie_now"]
+
     check_cookies()
 
     user_id = st.session_state.user_id
