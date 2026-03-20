@@ -1,6 +1,7 @@
 import streamlit as st
 
 
+@st.fragment
 def display(text: dict) -> None:
     """
     Zeigt die Spielregeln in einem ausklappbaren Expander an.
