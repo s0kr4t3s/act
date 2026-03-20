@@ -97,7 +97,7 @@ def init_language() -> None:
     if "language" not in st.session_state:
         st.session_state.language = "en"
 
-    col_spacer, col_lang = st.columns([10, 1])
+    col_spacer, col_lang = st.columns([10, 4])
     with col_lang:
         new_lang = st.selectbox(
             "🌐",
