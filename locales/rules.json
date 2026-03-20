@@ -1,0 +1,30 @@
+{
+  "en": {
+    "rules_title": "📖 How to play act! (Suggestion)",
+    "rules_intro": "act! is a creative multiplayer party game for acting enthusiasts and friends. Here is how it works:",
+    "rules_step1_title": "🎭 1. Setup",
+    "rules_step1_text": "One player (the host) creates a 'Dressing Room' (Lobby) and sets a password. The others join using the 8-character ID.",
+    "rules_mode1_title": "🎬 Mode 1: Emotion & Sentence",
+    "rules_mode1_text": "You get a random emotion (e.g., 'Anger') and a bizarre sentence. Deliver the sentence using that exact emotion.",
+    "rules_mode2_title": "🎬 Mode 2: Character & Sentence",
+    "rules_mode2_text": "Slip into a famous character (e.g., 'Emma Swan') and deliver the sentence exactly as they would.",
+    "rules_mode3_title": "🤯 Mode 3: Absolute Chaos",
+    "rules_mode3_text": "The ultimate challenge! You get a character, a sentence, AND a completely inappropriate emotion (e.g., Darth Vader happily saying 'I love butterflies').",
+    "rules_scoring_title": "🌟 Scoring & Export",
+    "rules_scoring_text": "The group enjoys the performance. If you nailed it, hit the '🌟 Great Job!' button to return to the menu for the next player. You can also save your scene as an image to share!"
+  },
+  "de": {
+    "rules_title": "📖 Spielregeln für act! (ganz unverbindlich)",
+    "rules_intro": "act! ist ein kreatives Multiplayer-Partyspiel für Schauspiel-Fans und Freundesgruppen. So funktioniert's:",
+    "rules_step1_title": "🎭 1. Vorbereitung",
+    "rules_step1_text": "Eine Spielerin (der Host) erstellt einen 'Dressing Room' (Lobby) und legt ein Passwort fest. Die anderen treten über die 8-stellige ID bei.",
+    "rules_mode1_title": "🎬 Modus 1: Emotion & Satz",
+    "rules_mode1_text": "Du erhältst eine zufällige Emotion (z.B. 'Wut') und einen absurden Satz. Trage den Satz in genau dieser Emotion vor.",
+    "rules_mode2_title": "🎬 Modus 2: Rolle & Satz",
+    "rules_mode2_text": "Schlüpfe in einen bekannten Charakter (z.B. 'Dr. House' oder 'Captain Hook') und trage den Satz exakt so vor, wie diese Figur es tun würde.",
+    "rules_mode3_title": "🤯 Modus 3: Absolute Eskalation",
+    "rules_mode3_text": "Die Königsdisziplin! Du erhältst eine Rolle, einen Satz UND eine völlig unpassende Emotion (z.B. Darth Vader sagt fröhlich: 'Ich liebe Schmetterlinge').",
+    "rules_scoring_title": "🌟 Bewertung & Export",
+    "rules_scoring_text": "Die Gruppe genießt die Performance. Bei Erfolg wird der '🌟 Great Job!' Button gedrückt, um zur Modus-Auswahl zurückzukehren. Du kannst deine Szene auch als Bild speichern und teilen!"
+  }
+}

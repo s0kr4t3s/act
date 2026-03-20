@@ -2,22 +2,28 @@ import streamlit as st
 import time
 import random
 import json
+import io
+import textwrap
 from typing import Dict, Any
+from PIL import Image, ImageDraw, ImageFont
 
 
 def load_game_data(lang: str) -> tuple:
-    """Loads the game data from JSON files based on the selected language."""
-    # Wir laden ALLE Emotionen (en und de), um später die Übersetzung zu haben
-    all_emotions = json.load(open("locales/emotions.json"))
-    roles = json.load(open("locales/roles.json"))
-    sentences = json.load(open("locales/sentences.json"))[lang]
-    return all_emotions, roles, sentences
+    try:
+        all_emotions = json.load(open("locales/emotions.json"))
+        roles = json.load(open("locales/roles.json"))
+        sentences = json.load(open("locales/sentences.json"))[lang]
+        return all_emotions, roles, sentences
+    except FileNotFoundError:
+        st.error("Error: locales folder or files not found!")
+        st.stop()
+    except KeyError:
+        st.error(f"Error: Language '{lang}' not found in sentences.json!")
+        st.stop()
 
 
 def generate_prompt(mode: int, lang: str) -> Dict[str, str]:
-    """Generates a random prompt based on the selected game mode."""
     all_emotions, roles, sentences = load_game_data(lang)
-    # Wir fügen emotion_sub für die Übersetzung hinzu
     prompt = {
         "emotion": "",
         "emotion_sub": "",
@@ -25,11 +31,9 @@ def generate_prompt(mode: int, lang: str) -> Dict[str, str]:
         "source": "",
         "sentence": "",
     }
-
     prompt["sentence"] = random.choice(sentences)
 
     if mode in [1, 3]:
-        # Wir wählen einen zufälligen Index, um die Emotion in beiden Sprachen zu erhalten
         idx = random.randint(0, len(all_emotions["en"]) - 1)
         if lang == "en":
             prompt["emotion"] = all_emotions["en"][idx]
@@ -47,7 +51,6 @@ def generate_prompt(mode: int, lang: str) -> Dict[str, str]:
 
 
 def handle_loading(text: str, duration: float = 1.0):
-    """Displays a fast progress bar blocking execution."""
     bar = st.progress(0, text=text)
     steps = 50
     sleep_time = duration / steps
@@ -58,13 +61,106 @@ def handle_loading(text: str, duration: float = 1.0):
     bar.empty()
 
 
-# --- OPTIMIERT FÜR MINIMALE DATENBANKABFRAGEN ---
+# ==========================================
+# SERVER-SIDE IMAGE GENERATION (100% Sicher)
+# ==========================================
+def generate_scene_image(prompt: dict, text_dict: dict) -> bytes:
+    """
+    Erzeugt das Bild der aktuellen Szene mit Python im Arbeitsspeicher.
+    Ignoriert alle iFrame- und Browser-Blockaden.
+    """
+    width, height = 800, 900
+    img = Image.new(
+        'RGB', (width, height), color=(14, 17, 23)
+    )  # Streamlit Dark Mode BG
+    draw = ImageDraw.Draw(img)
+
+    try:
+        # Überschriften mit Permanent Marker
+        font_title = ImageFont.truetype("assets/PermanentMarker-Regular.ttf", 25)
+        # Sätze und Inhalt mit Kalam
+        font_main = ImageFont.truetype("assets/Kalam-Regular.ttf", 45)
+        font_sub = ImageFont.truetype("assets/Kalam-Regular.ttf", 25)
+    except IOError:
+        font_title = ImageFont.load_default()
+        font_main = ImageFont.load_default()
+        font_sub = ImageFont.load_default()
+
+    current_y = 50
+
+    def draw_box(title, content, sub_content, bg_color):
+        nonlocal current_y
+
+        # Text intelligent umbrechen
+        wrapped_content = textwrap.fill(content, width=32)
+        content_lines = wrapped_content.split('\n')
+
+        # Höhe der Box dynamisch berechnen
+        box_height = 80 + (len(content_lines) * 55)
+        if sub_content:
+            box_height += 40
+
+        # Box zeichnen
+        draw.rounded_rectangle(
+            [(50, current_y), (width - 50, current_y + box_height)],
+            radius=15,
+            fill=bg_color,
+        )
+
+        # Titel
+        draw.text((70, current_y + 15), title, font=font_title, fill=(255, 255, 255))
+
+        # Inhalt
+        text_y = current_y + 55
+        for line in content_lines:
+            draw.text((70, text_y), line, font=font_main, fill=(255, 255, 255))
+            text_y += 55
+
+        # Untertitel (Zweite Sprache oder Quelle)
+        if sub_content:
+            draw.text(
+                (70, text_y), sub_content, font=font_sub, fill=(255, 255, 255, 180)
+            )
+
+        current_y += box_height + 30
+
+    # Zeichne die aktiven Prompt-Teile
+    if prompt.get("emotion"):
+        sub_text = f"({prompt['emotion_sub']})" if prompt.get("emotion_sub") else ""
+        draw_box(
+            text_dict.get('label_emotion', 'Emotion'),
+            prompt['emotion'],
+            sub_text,
+            (243, 156, 18),
+        )  # Orange
+
+    if prompt.get("character"):
+        draw_box(
+            text_dict.get('label_character', 'Character'),
+            prompt['character'],
+            f"({prompt['source']})",
+            (46, 204, 113),
+        )  # Green
+
+    if prompt.get("sentence"):
+        draw_box(
+            text_dict.get('label_sentence', 'Sentence'),
+            f"\"{prompt['sentence']}\"",
+            "",
+            (231, 76, 60),
+        )  # Red
+
+    # Bild zuschneiden, falls es kürzer ist als 900px
+    img = img.crop((0, 0, width, current_y + 20))
+
+    # Bild in Bytes umwandeln
+    img_byte_arr = io.BytesIO()
+    img.save(img_byte_arr, format='PNG')
+    return img_byte_arr.getvalue()
+
+
 @st.fragment(run_every="3s")
 def render_game_board(session_manager):
-    """
-    Polls the Redis database every 3 seconds to ensure all players
-    see exactly the same screen.
-    """
     session_id = st.session_state.session_id
     session_data = session_manager.get_session(session_id)
     text = st.session_state.text
@@ -158,7 +254,6 @@ def render_game_board(session_manager):
 
         if st.session_state.get("clicked_great"):
             st.balloons()
-
             st.markdown(
                 """
                 <style>
@@ -181,7 +276,6 @@ def render_game_board(session_manager):
                 disabled=True,
                 use_container_width=True,
             )
-
             handle_loading(text["loading_return"], 1.0)
 
             session_data["game_phase"] = 1
@@ -193,42 +287,59 @@ def render_game_board(session_manager):
             st.rerun()
             return
 
-        if prompt.get("emotion"):
-            # Generiere das HTML für die Zweitsprache (kleiner, normaler Font-Weight, leicht transparent/grau)
-            sub_html = ""
-            if prompt.get("emotion_sub"):
-                sub_html = f" <span style='font-size: 1.2rem; font-weight: normal; color: rgba(255, 255, 255, 0.7);'>({prompt['emotion_sub']})</span>"
+        # === SZENEN UI (Das, was die Userin im Browser sieht) ===
+        if prompt.get("emotion") or prompt.get("character") or prompt.get("sentence"):
 
-            st.markdown(
-                f"""
-            <div style='background-color: #F39C12; padding: 1.5rem; border-radius: 15px; margin-bottom: 1rem; box-shadow: 0 4px 10px rgba(0,0,0,0.2);'>
-                <h4 style='color: white; margin-bottom: 0; font-family: "Permanent Marker", cursive;'>{text['label_emotion']}</h4>
-                <h2 style='color: white; margin-top: 0;'>{prompt['emotion']}{sub_html}</h2>
-            </div>
-            """,
-                unsafe_allow_html=True,
-            )
+            if prompt.get("emotion"):
+                sub_html = ""
+                if prompt.get("emotion_sub"):
+                    sub_html = f" <span style='font-size: 1.2rem; font-weight: normal; color: rgba(255, 255, 255, 0.7);'>({prompt['emotion_sub']})</span>"
+                st.markdown(
+                    f"""
+                <div style='background-color: #F39C12; padding: 1.5rem; border-radius: 15px; margin-bottom: 1rem; box-shadow: 0 4px 10px rgba(0,0,0,0.2);'>
+                    <h4 style='color: white; margin-bottom: 0; font-family: "Permanent Marker", cursive;'>{text.get('label_emotion', 'Emotion')}</h4>
+                    <h2 style='color: white; margin-top: 0;'>{prompt['emotion']}{sub_html}</h2>
+                </div>
+                """,
+                    unsafe_allow_html=True,
+                )
 
-        if prompt.get("character"):
-            st.markdown(
-                f"""
-            <div style='background-color: #2ECC71; padding: 1.5rem; border-radius: 15px; margin-bottom: 1rem; box-shadow: 0 4px 10px rgba(0,0,0,0.2);'>
-                <h4 style='color: white; margin-bottom: 0; font-family: "Permanent Marker", cursive;'>{text['label_character']}</h4>
-                <h2 style='color: white; margin-top: 0;'>{prompt['character']} <span style='font-size: 1.2rem; opacity: 0.8;'>({prompt['source']})</span></h2>
-            </div>
-            """,
-                unsafe_allow_html=True,
-            )
+            if prompt.get("character"):
+                st.markdown(
+                    f"""
+                <div style='background-color: #2ECC71; padding: 1.5rem; border-radius: 15px; margin-bottom: 1rem; box-shadow: 0 4px 10px rgba(0,0,0,0.2);'>
+                    <h4 style='color: white; margin-bottom: 0; font-family: "Permanent Marker", cursive;'>{text.get('label_character', 'Character')}</h4>
+                    <h2 style='color: white; margin-top: 0;'>{prompt['character']} <span style='font-size: 1.2rem; opacity: 0.8;'>({prompt['source']})</span></h2>
+                </div>
+                """,
+                    unsafe_allow_html=True,
+                )
 
-        if prompt.get("sentence"):
-            st.markdown(
-                f"""
-            <div style='background-color: #E74C3C; padding: 1.5rem; border-radius: 15px; margin-bottom: 1rem; box-shadow: 0 4px 10px rgba(0,0,0,0.2);'>
-                <h4 style='color: white; margin-bottom: 0; font-family: "Permanent Marker", cursive;'>{text['label_sentence']}</h4>
-                <h1 style='color: white; font-family: "Kalam", cursive; font-style: italic; margin-top: 0;'>" {prompt['sentence']} "</h1>
-            </div>
-            """,
-                unsafe_allow_html=True,
+            if prompt.get("sentence"):
+                st.markdown(
+                    f"""
+                <div style='background-color: #E74C3C; padding: 1.5rem; border-radius: 15px; margin-bottom: 1rem; box-shadow: 0 4px 10px rgba(0,0,0,0.2);'>
+                    <h4 style='color: white; margin-bottom: 0; font-family: "Permanent Marker", cursive;'>{text.get('label_sentence', 'Sentence')}</h4>
+                    <h1 style='color: white; font-family: "Kalam", cursive; font-style: italic; margin-top: 0;'>" {prompt['sentence']} "</h1>
+                </div>
+                """,
+                    unsafe_allow_html=True,
+                )
+
+            st.write("")
+
+            # === NATIVE BILD-GENERIERUNG UND DOWNLOAD ===
+            # Das Bild wird sicher auf dem Server gezeichnet.
+            img_bytes = generate_scene_image(prompt, text)
+
+            # Streamlits eingebauter, sicherer Download-Button!
+            st.download_button(
+                label="📸 Save This Scene!",
+                data=img_bytes,
+                file_name=f"act_scene_{int(time.time())}.png",
+                mime="image/png",
+                use_container_width=True,
+                type="primary",
             )
 
         st.write("")
@@ -238,18 +349,9 @@ def render_game_board(session_manager):
 
         with col_reroll:
             st.markdown(
-                """
-                <style>
-                div[data-testid="column"]:nth-child(1) button[key="reroll_btn"] {
-                    font-family: 'Permanent Marker', cursive !important;
-                    font-size: 1.2rem !important;
-                    padding: 1.5rem !important;
-                }
-                </style>
-            """,
+                """<style>div[data-testid="column"]:nth-child(1) button[key="reroll_btn"] { font-family: 'Permanent Marker', cursive !important; font-size: 1.2rem !important; padding: 1.5rem !important; }</style>""",
                 unsafe_allow_html=True,
             )
-
             if st.button(
                 "🎲 " + text.get("btn_reroll", "Reroll"),
                 use_container_width=True,
@@ -261,25 +363,9 @@ def render_game_board(session_manager):
 
         with col_great:
             st.markdown(
-                """
-                <style>
-                div[data-testid="column"]:nth-child(2) button[key="great_btn"] {
-                    background-color: #7F8C8D !important;
-                    color: #FFFFFF !important;
-                    border: none !important;
-                    font-family: 'Permanent Marker', cursive !important;
-                    font-size: 1.5rem !important;
-                    padding: 1.5rem !important;
-                    box-shadow: 0 4px 10px rgba(127, 140, 141, 0.4) !important;
-                }
-                div[data-testid="column"]:nth-child(2) button[key="great_btn"]:hover {
-                    background-color: #95A5A6 !important;
-                }
-                </style>
-            """,
+                """<style>div[data-testid="column"]:nth-child(2) button[key="great_btn"] { background-color: #7F8C8D !important; color: #FFFFFF !important; border: none !important; font-family: 'Permanent Marker', cursive !important; font-size: 1.5rem !important; padding: 1.5rem !important; box-shadow: 0 4px 10px rgba(127, 140, 141, 0.4) !important; } div[data-testid="column"]:nth-child(2) button[key="great_btn"]:hover { background-color: #95A5A6 !important; }</style>""",
                 unsafe_allow_html=True,
             )
-
             if st.button(
                 "🌟 " + text["btn_great"], use_container_width=True, key="great_btn"
             ):
