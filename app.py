@@ -1,17 +1,14 @@
 import streamlit as st
-import streamlit.components.v1 as components
 import redis
 import json
 import uuid
 import datetime
 import hashlib
 import time
-import hmac
-import extra_streamlit_components as stx
 from werkzeug.security import generate_password_hash, check_password_hash
 from typing import Optional, Tuple, Dict, Any
 import os
-import urllib.request  # NEU: Um die Fonts automatisch zu laden
+import urllib.request
 
 from act.game import game_page
 from act.rules import display as display_rules
@@ -30,10 +27,6 @@ st.set_page_config(page_title="act!", page_icon="🎭", layout="wide")
 # AUTO-DOWNLOAD FONTS FOR PILLOW
 # ==========================================
 def ensure_assets_exist():
-    """
-    Prüft, ob der Ordner 'assets' und die Schriftarten für Pillow existieren.
-    Wenn nicht, werden sie automatisch von den offiziellen Google Fonts Repositories geladen.
-    """
     if not os.path.exists("assets"):
         os.makedirs("assets")
 
@@ -47,62 +40,13 @@ def ensure_assets_exist():
         if not os.path.exists(font_path):
             try:
                 urllib.request.urlretrieve(url, font_path)
-                print(f"Erfolgreich geladen: {font_name} für Pillow.")
             except Exception as e:
                 print(f"Fehler beim Laden von {font_name}: {e}")
 
 
 # ==========================================
-# COOKIE INJECTOR (Für Safari iFrames)
-# ==========================================
-def set_secure_cookie(name: str, value: str, days: int = 30):
-    js_code = f"""
-    <script>
-        var d = new Date();
-        d.setTime(d.getTime() + ({days}*24*60*60*1000));
-        var expires = "expires="+ d.toUTCString();
-        document.cookie = "{name}={value};" + expires + ";path=/;SameSite=None;Secure";
-    </script>
-    """
-    components.html(js_code, height=0, width=0)
-
-
-# ==========================================
 # SECURITY & DB
 # ==========================================
-def get_cookie_secret() -> bytes:
-    secret = os.environ.get("COOKIE_SECRET")
-    if not secret:
-        try:
-            if "COOKIE_SECRET" in st.secrets:
-                secret = st.secrets["COOKIE_SECRET"]
-        except Exception:
-            pass
-    if not secret:
-        secret = "super-secret-dev-key"
-    return secret.encode('utf-8')
-
-
-def sign_cookie(user_id: str) -> str:
-    signature = hmac.new(
-        get_cookie_secret(), user_id.encode('utf-8'), hashlib.sha256
-    ).hexdigest()
-    return f"{user_id}|{signature}"
-
-
-def verify_cookie(cookie_val: str) -> bool:
-    try:
-        if not cookie_val or "|" not in cookie_val:
-            return False
-        user_id, signature = cookie_val.split("|", 1)
-        expected_sig = hmac.new(
-            get_cookie_secret(), user_id.encode('utf-8'), hashlib.sha256
-        ).hexdigest()
-        return hmac.compare_digest(signature, expected_sig)
-    except Exception:
-        return False
-
-
 @st.cache_resource
 def get_rate_limiter() -> dict:
     return {}
@@ -147,20 +91,13 @@ def init_language() -> None:
 
 
 def inject_creative_styles() -> None:
-    # Hier wird das Web-Design über CSS geladen
     st.markdown(
         """
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Permanent+Marker&family=Kalam:wght@400;700&display=swap');
         
-        /* === SCALING FIX: Nur auf Desktop/Tablet anwenden, NICHT auf Handys! === */
         @media (min-width: 768px) {
-            [data-testid="stAppViewContainer"] { 
-                transform: scale(0.8); 
-                transform-origin: top left; 
-                width: 125%; 
-                height: 125%; 
-            }
+            [data-testid="stAppViewContainer"] { transform: scale(0.8); transform-origin: top left; width: 125%; height: 125%; }
         }
 
         html, body, [data-testid="stAppViewContainer"], .st-emotion-cache-1vt458e p, label { font-family: 'Kalam', cursive; font-size: 1.1rem; }
@@ -323,34 +260,6 @@ def render_footer() -> None:
     )
 
 
-def check_cookies() -> None:
-    if st.session_state.get("cookies_accepted", False):
-        return
-    cookie_manager = stx.CookieManager(key="global_cookie_manager")
-    cookie_val = cookie_manager.get(cookie="user_id")
-    if cookie_val and verify_cookie(cookie_val):
-        st.session_state.cookies_accepted = True
-        st.session_state.user_id = cookie_val.split("|")[0]
-        return
-    with st.container():
-        st.info("🍪 Cookies are required for session stability.")
-        col1, col2 = st.columns([1, 5])
-        with col1:
-            if st.button("Accept", type="primary"):
-                raw_uuid = str(uuid.uuid4())
-                st.session_state.cookies_accepted = True
-                st.session_state.user_id = raw_uuid
-                st.session_state.set_cookie_now = sign_cookie(raw_uuid)
-                st.rerun()
-        with col2:
-            if st.button("Decline"):
-                st.error("Cookies are mandatory.")
-                render_footer()
-                st.stop()
-    render_footer()
-    st.stop()
-
-
 def landing_page() -> None:
     text = st.session_state.text
     user_id = st.session_state.user_id
@@ -495,20 +404,25 @@ def render_lobby() -> None:
 
 
 def main() -> None:
-    # NEU: Lade Fonts im Hintergrund herunter, falls sie fehlen!
     ensure_assets_exist()
-
     init_language()
     inject_creative_styles()
 
-    if "set_cookie_now" in st.session_state:
-        set_secure_cookie("cookie_consent", "true", 30)
-        set_secure_cookie("user_id", st.session_state.set_cookie_now, 30)
-        del st.session_state["set_cookie_now"]
+    # ========================================================
+    # DIE NEUE MAGIC: Wir lesen die ID direkt aus der URL aus!
+    # (Keine Cookie-Banner, kein stx.CookieManager mehr)
+    # ========================================================
+    user_id = st.query_params.get("uid")
 
-    check_cookies()
+    # Fallback, falls jemand den HF-Space direkt ohne Netlify aufruft
+    if not user_id:
+        if "fallback_uid" not in st.session_state:
+            st.session_state.fallback_uid = str(uuid.uuid4())
+        user_id = st.session_state.fallback_uid
 
-    user_id = st.session_state.user_id
+    st.session_state.user_id = user_id
+    # ========================================================
+
     if "current_page" not in st.session_state:
         restored_state = GameSessionManager.get_user_state(user_id)
         if restored_state:
