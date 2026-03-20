@@ -147,12 +147,22 @@ def init_language() -> None:
 
 
 def inject_creative_styles() -> None:
-    # Hier wird das Web-Design über CSS geladen (das ist unabhängig von Pillow)
+    # Hier wird das Web-Design über CSS geladen
     st.markdown(
         """
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Permanent+Marker&family=Kalam:wght@400;700&display=swap');
-        [data-testid="stAppViewContainer"] { transform: scale(0.8); transform-origin: top left; width: 125%; height: 125%; }
+        
+        /* === SCALING FIX: Nur auf Desktop/Tablet anwenden, NICHT auf Handys! === */
+        @media (min-width: 768px) {
+            [data-testid="stAppViewContainer"] { 
+                transform: scale(0.8); 
+                transform-origin: top left; 
+                width: 125%; 
+                height: 125%; 
+            }
+        }
+
         html, body, [data-testid="stAppViewContainer"], .st-emotion-cache-1vt458e p, label { font-family: 'Kalam', cursive; font-size: 1.1rem; }
         h1, h2, h3, h4, h5, h6, .stButton button { font-family: 'Permanent Marker', cursive; letter-spacing: 0.05rem; }
         [data-testid="stHeader"] h1 { color: #E74C3C; text-shadow: 1px 1px 2px rgba(0,0,0,0.2); font-size: 4rem; margin-bottom: 0; padding-bottom: 0; }
